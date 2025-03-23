@@ -40,27 +40,55 @@ class Movies extends Component {
     }
   }
 
-  async componentDidUpdate(prevState) {
+  async componentDidUpdate(prevProps, prevState) {
+    // Check if searchInput has changed
     if (prevState.searchInput !== this.state.searchInput) {
-      if (this.state.searchInput.trim().length > 0) {
-        let foundSearch = [];
+      const { searchInput } = this.state;
+  
+      // Trim and check if the search input is not empty
+      if (searchInput.trim().length > 0) {
+        // Cancel any previous pending requests
+        if (this.searchRequest) {
+          this.searchRequest.cancel();
+        }
+  
+        // Create a new cancelable request
+        this.searchRequest = axios.CancelToken.source();
+  
         try {
-          let movieSearched = await searchMovie(this.state.searchInput);
-
-          if (movieSearched.status !== 200) return false;
-
-          foundSearch = movieSearched.data.results;
-
-          if (foundSearch.length > 0)
-            this.setState({
-              searchedMovies: [...foundSearch],
-            });
+          // Perform the search
+          const movieSearched = await searchMovie(searchInput, {
+            cancelToken: this.searchRequest.token,
+          });
+  
+          // Check if the response is successful
+          if (movieSearched.status === 200) {
+            const foundSearch = movieSearched.data.results;
+  
+            // Update state if results are found
+            if (foundSearch.length > 0) {
+              this.setState({
+                searchedMovies: [...foundSearch],
+              });
+            }
+          }
         } catch (error) {
-          return `${error}`;
+          // Handle errors (excluding canceled requests)
+          if (!axios.isCancel(error)) {
+            console.error("Search failed:", error);
+          }
         }
       }
     }
   }
+  
+  componentWillUnmount() {
+    // Cancel any pending requests when the component unmounts
+    if (this.searchRequest) {
+      this.searchRequest.cancel();
+    }
+  }
+  
 
   movieSelectedHandler = (preview) => {
     this.setState({
